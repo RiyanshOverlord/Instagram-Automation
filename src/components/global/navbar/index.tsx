@@ -47,6 +47,7 @@ const Navbar = ({ slug }: Props) => {
                   <div className="flex gap-x-2">
                     <ClerkAuthState />
                     <p className="text-[#9B9CA0]">Profile</p>
+                    
                   </div>
 
                   <div className="flex gap-x-3">
@@ -60,6 +61,7 @@ const Navbar = ({ slug }: Props) => {
                     <UpgradeCard />
                   </div>
                 </SubscriptionPlan>
+                
               </div>
             </Sheet>
           </span>
