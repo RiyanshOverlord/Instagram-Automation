@@ -1,6 +1,7 @@
 // src/lib/prisma.ts
 import 'dotenv/config';            // ensure .env is loaded
-import { PrismaClient } from '@prisma/client';
+// import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '@/generated/prisma';
 import { PrismaPg } from '@prisma/adapter-pg';  // postgres adapter
 
 declare global {

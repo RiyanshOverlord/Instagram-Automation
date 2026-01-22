@@ -125,7 +125,7 @@ export const useAutomationPosts = (id:string) => {
       postid:string
       caption?:string
       media:string
-      mediaType:'IMAGE' | 'VIDEO' | 'CAROUSEL_ALBUM'   //corrected typo from 'CAROSEL_ALBUM' to 'CAROUSEL_ALBUM'
+      mediaType:'IMAGE' | 'VIDEO' | 'CAROSEL_ALBUM'   //corrected typo from 'CAROSEL_ALBUM' to 'CAROUSEL_ALBUM'
     }[]
     >([])
 
@@ -133,7 +133,7 @@ export const useAutomationPosts = (id:string) => {
       postid:string
       caption?:string
       media:string
-      mediaType:'IMAGE' | 'VIDEO' | 'CAROUSEL_ALBUM'   //corrected typo from 'CAROSEL_ALBUM' to 'CAROUSEL_ALBUM'
+      mediaType:'IMAGE' | 'VIDEO' | 'CAROSEL_ALBUM'   //corrected typo from 'CAROSEL_ALBUM' to 'CAROUSEL_ALBUM'
     })=>{
       setPosts((prevItems)=>{
         if(prevItems.find((p)=>p.postid === post.postid)){
