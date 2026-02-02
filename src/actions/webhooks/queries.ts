@@ -1,16 +1,28 @@
 import { client } from "@/lib/prisma"
 import { ChatCompletionMessageParam } from "openai/resources/chat";
 
-// Function to match a keyword in the database
-export const matchKeyword = async (keyword: string) => {
-    return await client.keyword.findFirst({
-        where:{
-            word:{
-                equals: keyword,
-                mode: 'insensitive',
-            },
+// Function to match a keyword in the database (accepts full text and matches whole words case-insensitively)
+export const matchKeyword = async (text: string) => {
+    if (!text || typeof text !== 'string') return null;
+
+    // normalize text: lower-case, replace non-alphanumeric characters with space, split into words
+    const normalized = text.toLowerCase().replace(/[^a-z0-9\s]/g, ' ');
+    const words = Array.from(new Set(normalized.split(/\s+/).filter(Boolean)));
+
+    if (words.length === 0) return null;
+
+    // Build OR conditions to match any whole word (case-insensitive)
+    const conditions = words.map((w) => ({ word: { equals: w, mode: 'insensitive' as const } }));
+
+    console.log("🔎 matchKeyword words:", words);
+    const matched = await client.keyword.findFirst({
+        where: {
+            OR: conditions,
         },
-    })
+    });
+
+    console.log("✅ matchKeyword matched:", matched);
+    return matched;
 } 
 
 // Function to get automation details based on automation ID and type (DM or COMMENT)

@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
           true,
         );
         console.log("✅ Automation fetched:", automation ? "Found" : "Not found");
-        if (automation && automation.trigger) {
+        if (automation && automation.trigger && automation.trigger.length > 0) {
           if (
             automation.listener &&
             automation.listener.listener === "MESSAGE"
@@ -199,7 +199,7 @@ export async function POST(req: NextRequest) {
         )
         console.log("✅ Post automation fetched:", automations_post ? "Found" : "Not found");
 
-        if(automation && automations_post && automation.trigger){
+        if(automation && automations_post && automation.trigger && automation.trigger.length > 0){
             console.log("✅ Conditions met for comment processing");
             if(automation.listener){
                 if(automation.listener.listener==="MESSAGE"){
@@ -316,179 +316,200 @@ export async function POST(req: NextRequest) {
     if(!matcher){
         // No keyword match
         console.log("⚠️ No Keyword Match Found");
-        console.log("🔄 Fetching chat history...");
-        const customer_history = await getChatHistory(
+
+        // If this webhook entry is a messaging (DM) event, run the DM fallback flow
+        if (
+          webhook_payload.entry[0].messaging &&
+          webhook_payload.entry[0].messaging[0] &&
+          webhook_payload.entry[0].messaging[0].message &&
+          typeof webhook_payload.entry[0].messaging[0].message.text === "string"
+        ) {
+          console.log("🔄 Fetching chat history...");
+          const customer_history = await getChatHistory(
             webhook_payload.entry[0].messaging[0].recipient.id,
             webhook_payload.entry[0].messaging[0].sender.id,
-        )
-        console.log("✅ Chat history retrieved. History length:", customer_history.history.length);
+          )
+          console.log("✅ Chat history retrieved. History length:", customer_history.history.length);
 
-        if(customer_history.history.length > 0){
-            console.log("✅ Previous chat history found");
-            console.log("🔄 Finding automation for this conversation...");
-            const automation = await findAutomation(customer_history.automationId!)
-            console.log("✅ Automation found:", automation ? "Yes" : "No");
+          if(customer_history.history.length > 0){
+              console.log("✅ Previous chat history found");
+              console.log("🔄 Finding automation for this conversation...");
+              const automation = await findAutomation(customer_history.automationId!)
+              console.log("✅ Automation found:", automation ? "Yes" : "No");
 
-            if(
-                automation?.User?.subscription?.plan === "PRO" && 
-                automation.listener?.listener === "SMARTAI"
-            ){
-                console.log("🤖 SMARTAI with existing chat history. Generating contextual AI response...");
-                const smart_ai_message = await openai.chat.completions.create({
-                    model:'gpt-4o',
-                    messages:[
-                        {
-                            role:'assistant',
-                            content:`${automation.listener?.prompt}: Keep responses under 2 sentences`
-                        },
-                        ...customer_history.history,
-                        {
-                            role:'user',
-                            content:webhook_payload.entry[0].messaging[0].message.text
-                        }
-                    ]
-                })
+              if(
+                  automation?.User?.subscription?.plan === "PRO" && 
+                  automation.listener?.listener === "SMARTAI"
+              ){
+                  console.log("🤖 SMARTAI with existing chat history. Generating contextual AI response...");
+                  const smart_ai_message = await openai.chat.completions.create({
+                      model:'gpt-4o',
+                      messages:[
+                          {
+                              role:'assistant',
+                              content:`${automation.listener?.prompt}: Keep responses under 2 sentences`
+                          },
+                          ...customer_history.history,
+                          {
+                              role:'user',
+                              content:webhook_payload.entry[0].messaging[0].message.text
+                          }
+                      ]
+                  })
 
-                console.log("✅ AI response with context generated:", smart_ai_message.choices[0].message.content);
+                  console.log("✅ AI response with context generated:", smart_ai_message.choices[0].message.content);
 
-                if(smart_ai_message.choices[0].message.content){
-                    console.log("💾 Creating chat history entries...");
-                    const reciever = createChatHistory(
-                        automation.id,
-                        webhook_payload.entry[0].id,
-                        webhook_payload.entry[0].messaging[0].sender.id,
-                        webhook_payload.entry[0].messaging[0].message.text,
-                    )
+                  if(smart_ai_message.choices[0].message.content){
+                      console.log("💾 Creating chat history entries...");
+                      const reciever = createChatHistory(
+                          automation.id,
+                          webhook_payload.entry[0].id,
+                          webhook_payload.entry[0].messaging[0].sender.id,
+                          webhook_payload.entry[0].messaging[0].message.text,
+                      )
 
-                    const sender = createChatHistory(
-                        automation.id,
-                        webhook_payload.entry[0].id,
-                        webhook_payload.entry[0].messaging[0].sender.id,
-                        smart_ai_message.choices[0].message.content,
-                    )
-                    console.log("💾 Chat history saved via transaction");
-                    await client.$transaction([reciever, sender]);
-                    console.log("🚀 Sending contextual AI response via DM...");
-                    const direct_message = await sendDM(
-                        webhook_payload.entry[0].id,
-                        webhook_payload.entry[0].messaging[0].sender.id,
-                        smart_ai_message.choices[0].message.content,
-                        automation.User?.integrations[0].token!,
-                    )
-                    console.log("✅ DM response status:", direct_message.status);
+                      const sender = createChatHistory(
+                          automation.id,
+                          webhook_payload.entry[0].id,
+                          webhook_payload.entry[0].messaging[0].sender.id,
+                          smart_ai_message.choices[0].message.content,
+                      )
+                      console.log("💾 Chat history saved via transaction");
+                      await client.$transaction([reciever, sender]);
+                      console.log("🚀 Sending contextual AI response via DM...");
+                      const direct_message = await sendDM(
+                          webhook_payload.entry[0].id,
+                          webhook_payload.entry[0].messaging[0].sender.id,
+                          smart_ai_message.choices[0].message.content,
+                          automation.User?.integrations[0].token!,
+                      )
+                      console.log("✅ DM response status:", direct_message.status);
 
-                    if(direct_message.status === 200){
-                        // if successfully send we return
-                        console.log("✨ Contextual SMARTAI message successfully sent");
-                        return NextResponse.json(
-                            {
-                                message:"Message Sent from Comment"
-                            },
-                            {
-                                status:200
-                            }
-                        )
-                    } else {
-                      console.error("❌ Contextual DM sending failed");
-                    }
-                }
-            }
-        }
-        console.log("ℹ️ No automation or no chat history found");
-        // Try to find an automation that triggers on DMs for this integration
-        try {
-          const dmAutomation = await getAutomationForDm(
-            webhook_payload.entry[0].messaging[0].recipient.id,
-          );
-          console.log("🔎 DM automation lookup result:", dmAutomation ? "Found" : "Not found");
-
-          if (dmAutomation && dmAutomation.listener) {
-            console.log("🔄 Processing DM-triggered automation:", dmAutomation.id);
-            // MESSAGE listener: send fixed prompt
-            if (dmAutomation.listener.listener === "MESSAGE") {
-              console.log("📤 Sending DM for DM-triggered MESSAGE listener...");
-              const direct_message = await sendDM(
-                webhook_payload.entry[0].id,
-                webhook_payload.entry[0].messaging[0].sender.id,
-                dmAutomation.listener.prompt,
-                dmAutomation.User?.integrations[0].token!,
-              );
-              console.log("✅ DM response status:", direct_message.status);
-              if (direct_message.status === 200) {
-                const tracked = await trackResponse(dmAutomation.id, "DM");
-                console.log("📊 Tracked DM response:", tracked);
-                if (tracked) {
-                  return NextResponse.json({ message: "DM_SENT" }, { status: 200 });
-                }
+                      if(direct_message.status === 200){
+                          // if successfully send we return
+                          console.log("✨ Contextual SMARTAI message successfully sent");
+                          return NextResponse.json(
+                              {
+                                  message:"Message Sent from Comment"
+                              },
+                              {
+                                  status:200
+                              }
+                          )
+                      } else {
+                        console.error("❌ Contextual DM sending failed");
+                      }
+                  }
               }
-            }
+          }
 
-            // SMARTAI listener: generate AI response if user has PRO
-            if (
-              dmAutomation.listener.listener === "SMARTAI" &&
-              dmAutomation.User?.subscription?.plan === "PRO"
-            ) {
-              console.log("🤖 Generating SMARTAI response for DM-triggered automation...");
-              const smart_ai_message = await openai.chat.completions.create({
-                model: "gpt-4o",
-                messages: [
-                  {
-                    role: "assistant",
-                    content: `${dmAutomation.listener?.prompt}: Keep responses under 2 sentences`,
-                  },
-                  {
-                    role: "user",
-                    content: webhook_payload.entry[0].messaging[0].message?.text || "",
-                  },
-                ],
-              });
+          console.log("ℹ️ No automation or no chat history found");
+          // Try to find an automation that triggers on DMs for this integration
+          try {
+            const dmAutomation = await getAutomationForDm(
+              webhook_payload.entry[0].messaging[0].recipient.id,
+            );
+            console.log("🔎 DM automation lookup result:", dmAutomation ? "Found" : "Not found");
 
-              if (smart_ai_message.choices[0].message.content) {
-                console.log("✅ AI response generated:", smart_ai_message.choices[0].message.content);
-                const reciever = createChatHistory(
-                  dmAutomation.id,
-                  webhook_payload.entry[0].id,
-                  webhook_payload.entry[0].messaging[0].sender.id,
-                  webhook_payload.entry[0].messaging[0].message?.text || "",
-                );
-
-                const sender = createChatHistory(
-                  dmAutomation.id,
-                  webhook_payload.entry[0].id,
-                  webhook_payload.entry[0].messaging[0].sender.id,
-                  smart_ai_message.choices[0].message.content,
-                );
-
-                await client.$transaction([reciever, sender]);
-
+            if (dmAutomation && dmAutomation.listener) {
+              console.log("🔄 Processing DM-triggered automation:", dmAutomation.id);
+              // MESSAGE listener: send fixed prompt
+              if (dmAutomation.listener.listener === "MESSAGE") {
+                console.log("📤 Sending DM for DM-triggered MESSAGE listener...");
                 const direct_message = await sendDM(
                   webhook_payload.entry[0].id,
                   webhook_payload.entry[0].messaging[0].sender.id,
-                  smart_ai_message.choices[0].message.content,
+                  dmAutomation.listener.prompt,
                   dmAutomation.User?.integrations[0].token!,
                 );
-
+                console.log("✅ DM response status:", direct_message.status);
                 if (direct_message.status === 200) {
                   const tracked = await trackResponse(dmAutomation.id, "DM");
+                  console.log("📊 Tracked DM response:", tracked);
                   if (tracked) {
-                    return NextResponse.json({ message: "DM_SENT_SMARTAI" }, { status: 200 });
+                    return NextResponse.json({ message: "DM_SENT" }, { status: 200 });
+                  }
+                }
+              }
+
+              // SMARTAI listener: generate AI response if user has PRO
+              if (
+                dmAutomation.listener.listener === "SMARTAI" &&
+                dmAutomation.User?.subscription?.plan === "PRO"
+              ) {
+                console.log("🤖 Generating SMARTAI response for DM-triggered automation...");
+                const smart_ai_message = await openai.chat.completions.create({
+                  model: "gpt-4o",
+                  messages: [
+                    {
+                      role: "assistant",
+                      content: `${dmAutomation.listener?.prompt}: Keep responses under 2 sentences`,
+                    },
+                    {
+                      role: "user",
+                      content: webhook_payload.entry[0].messaging[0].message?.text || "",
+                    },
+                  ],
+                });
+
+                if (smart_ai_message.choices[0].message.content) {
+                  console.log("✅ AI response generated:", smart_ai_message.choices[0].message.content);
+                  const reciever = createChatHistory(
+                    dmAutomation.id,
+                    webhook_payload.entry[0].id,
+                    webhook_payload.entry[0].messaging[0].sender.id,
+                    webhook_payload.entry[0].messaging[0].message?.text || "",
+                  );
+
+                  const sender = createChatHistory(
+                    dmAutomation.id,
+                    webhook_payload.entry[0].id,
+                    webhook_payload.entry[0].messaging[0].sender.id,
+                    smart_ai_message.choices[0].message.content,
+                  );
+
+                  await client.$transaction([reciever, sender]);
+
+                  const direct_message = await sendDM(
+                    webhook_payload.entry[0].id,
+                    webhook_payload.entry[0].messaging[0].sender.id,
+                    smart_ai_message.choices[0].message.content,
+                    dmAutomation.User?.integrations[0].token!,
+                  );
+
+                  if (direct_message.status === 200) {
+                    const tracked = await trackResponse(dmAutomation.id, "DM");
+                    if (tracked) {
+                      return NextResponse.json({ message: "DM_SENT_SMARTAI" }, { status: 200 });
+                    }
                   }
                 }
               }
             }
+          } catch (err) {
+            console.error("❌ Error while processing DM-triggered automation:", err);
           }
-        } catch (err) {
-          console.error("❌ Error while processing DM-triggered automation:", err);
-        }
 
-        return NextResponse.json(
-          {
-            messages: "No automation set",
-          },
-          {
-            status: 200,
-          },
-        );
+          return NextResponse.json(
+            {
+              messages: "No automation set",
+            },
+            {
+              status: 200,
+            },
+          );
+        } else {
+          // No messaging object on webhook entry (likely a comment event). Nothing else to do.
+          console.log("ℹ️ No messaging object on webhook entry - likely a comment event. Skipping DM fallback.");
+          return NextResponse.json(
+            {
+              messages: "No automation set",
+            },
+            {
+              status: 200,
+            },
+          );
+        }
     }
     console.log("✅ Webhook processing completed successfully");
     return NextResponse.json({message:"No automation set"} , {status:200})
