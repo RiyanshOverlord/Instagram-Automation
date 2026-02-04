@@ -171,3 +171,28 @@ export const addPost = async(
         }
     })
 }
+
+// Get active automations with listeners (LIVE automations)
+export const getLiveAutomations = async (clerkId: string) => {
+  return await client.user.findUnique({
+    where: {
+      clerkId,
+    },
+    select: {
+      automations: {
+        where: {
+          active: true,
+          listener: {
+            isNot: null,
+          },
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        include: {
+          listener: true,
+        },
+      },
+    },
+  });
+};

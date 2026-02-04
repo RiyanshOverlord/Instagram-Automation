@@ -8,6 +8,7 @@ import { HelpCircle } from "lucide-react";
 import ClerkAuthState from "../clerk-auth-state";
 import { SubscriptionPlan } from "../subscription-plan";
 import UpgradeCard from "./upgrade";
+import ProBadge from "../pro-badge";
 
 
 type Props = {
@@ -20,9 +21,19 @@ const Sidebar = ({ slug }: Props) => {
   return (
     <div className="w-[250px] border-[1px] radial fixed left-0 lg:inline-block border-[#545454] bg-gradient-to-b from-[#768BDD] via-[#171717] to-[#768BDD] hidden bottom-0 top-0 m-3 rounded-3xl overflow-hidden">
       <div className="flex flex-col gap-y-5 w-full h-full p-3 bg-[#0e0e0e] bg-opacity-90 bg-clip-padding backdrop-filter backdrop--blur__safari backdrop-blur-3xl">
-        <div className="flex gap-x-2 items-center p-5 justify-center">
-          AutoGram <LogoSmall />
-        </div>
+       <div className="flex gap-x-2 items-center p-5 justify-center">
+  <span
+  className="
+    text-lg font-bold tracking-wide
+    bg-gradient-to-r
+    from-[#1E3A8A] via-[#2563EB] to-[#38BDF8]
+    bg-clip-text text-transparent
+  "
+>
+  Auto<span className="font-extrabold">Mate</span>
+</span>
+  <LogoSmall />
+</div>
         <div className="flex flex-col py-3">
           <Items page={page} slug={slug} />
         </div>
@@ -47,11 +58,15 @@ const Sidebar = ({ slug }: Props) => {
           </div>
         </div>
 
-            <UpgradeCard />
-        <SubscriptionPlan>
-          <div className="flex-1 flex flex-col justify-end">
-          </div>
-        </SubscriptionPlan>
+<div className="mt-auto px-3 pb-4">
+  <SubscriptionPlan type="FREE">
+    <UpgradeCard />
+  </SubscriptionPlan>
+
+  <SubscriptionPlan type="PRO">
+    <ProBadge />
+  </SubscriptionPlan>
+</div>
       </div>
     </div>
   );

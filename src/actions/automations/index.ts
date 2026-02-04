@@ -11,6 +11,7 @@ import {
   deleteKeyWordQuery,
   findAutomation,
   getAutomations,
+  getLiveAutomations,
   updateAutomation,
 } from "./queries";
 
@@ -167,5 +168,22 @@ export const activateAutomation = async (id: string, state: boolean) => {
     return { status: 404, data: "Automation not found" };
   } catch (error) {
     return { status: 500, error: "Internal Server Error" };
+  }
+};
+
+// Get live automations (active + listener)
+export const getLiveAutomationListeners = async () => {
+  const user = await onCurrentUser();
+
+  try {
+    const live = await getLiveAutomations(user.id);
+
+    if (!live || !live.automations.length) {
+      return { status: 200, data: [] };
+    }
+
+    return { status: 200, data: live.automations };
+  } catch (error) {
+    return { status: 500, error: [] };
   }
 };

@@ -9,6 +9,12 @@ import { motion } from "framer-motion"
 const PrimaryNavbar = () => {
   const [open, setOpen] = useState(false)
 
+    const scrollTo = (id: string) => {
+    const el = document.getElementById(id)
+    el?.scrollIntoView({ behavior: "smooth" })
+    setOpen(false) // closes mobile menu after click
+  }
+
   return (
     <motion.header initial={{ y: -8, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.5 }} className="sticky top-0 z-50 w-full backdrop-blur-md bg-slate-900/70 border-b border-white/10">
       <div className="container flex h-16 items-center justify-between px-4">
@@ -29,30 +35,29 @@ const PrimaryNavbar = () => {
 
         {/* Desktop Nav */}
         <nav className="hidden items-center gap-8 text-sm font-medium text-white md:flex">
-          <motion.a
-            href="#features"
-            whileHover={{ y: -3 }}
-            whileTap={{ scale: 0.98 }}
-            className="transition-colors hover:text-blue-400"
-          >
-            Features
-          </motion.a>
-          <motion.a
-            href="#pricing"
+          <motion.button
+  onClick={() => scrollTo("features")}
+  whileHover={{ y: -3 }}
+  className="hover:text-blue-400 text-left"
+>
+  Features
+      </motion.button>
+          <motion.button
+             onClick={() => scrollTo("pricing")}
             whileHover={{ y: -3 }}
             whileTap={{ scale: 0.98 }}
             className="transition-colors hover:text-blue-400"
           >
             Pricing
-          </motion.a>
-          <motion.a
-            href="#"
+          </motion.button>
+          <motion.button
+             onClick={() => scrollTo("faq")}
             whileHover={{ y: -3 }}
             whileTap={{ scale: 0.98 }}
             className="transition-colors hover:text-blue-400"
           >
-            Blog
-          </motion.a>
+            FAQ
+          </motion.button>
 
           <Button
             asChild

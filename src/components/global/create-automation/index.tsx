@@ -11,8 +11,7 @@ type Props = {}
 
 const CreateAutomation = (props: Props) => {
   const mutationId = useMemo(()=>v4(),[])
-    // Wip : Create Automation Component in dataabase using mutate
-console.log("Mutation ID" , mutationId);
+// console.log("Mutation ID" , mutationId);
  const {isPending , mutate} = useCreateAutomation(mutationId)
     
 

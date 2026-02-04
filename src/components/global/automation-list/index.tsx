@@ -29,7 +29,7 @@ const AutomationList = (props: Props) => {
 
   if (
     data?.status !== 200 ||
-    !data?.data || // Check if data is undefined (can we removed in future)
+    !data?.data ||
     data.data.length <= 0
   ) {
     return (
@@ -43,7 +43,11 @@ const AutomationList = (props: Props) => {
 
 
   return (
-    <div className="flex flex-col gap-y-3">
+    <div className="flex flex-col gap-y-3  max-h-[calc(100vh-220px)]
+      overflow-y-auto
+      pr-2   scrollbar-thin
+    scrollbar-thumb-white/20
+    scrollbar-track-transparent">
       {optimisticUiData.data!.map((automation) => (
         <Link
           key={automation.id}

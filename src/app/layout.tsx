@@ -10,7 +10,7 @@ import ReduxProvider from "@/providers/redux-provider";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "AutoGram",
+  title: "AutoMate - Automation Tool",
   description: "Automates Instagram Dm and commnets",
 };
 
