@@ -9,7 +9,7 @@ import {
   trackResponse,
 } from "@/actions/webhooks/queries";
 import { sendDM, sendPrivateMessage } from "@/lib/fetch";
-import { openai } from "@/lib/openai";
+import { chatCompletion } from "@/lib/gemini";
 import { client } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -116,70 +116,76 @@ export async function POST(req: NextRequest) {
             automation.User?.subscription?.plan === "PRO"
           ) {
             console.log("🤖 SMARTAI listener detected. Generating AI response...");
-            const smart_ai_message = await openai.chat.completions.create({
-              model: "gpt-4o",
-              messages: [
+            try {
+              const smart_ai_text = await chatCompletion([
                 {
                   role: "assistant",
                   content: `${automation.listener?.prompt}: Keep responses under 2 sentences`,
                 },
-              ],
-            });
+              ]);
 
-            if (smart_ai_message.choices[0].message.content) {
-              console.log("✅ AI response generated:", smart_ai_message.choices[0].message.content);
-              console.log("💾 Creating chat history...");
-              const reciever = createChatHistory(
-                automation.id,
-                webhook_payload.entry[0].id,
-                webhook_payload.entry[0].messaging[0].sender.id,
-                webhook_payload.entry[0].messaging[0].message.text,
-              );
+              if (smart_ai_text) {
+                console.log("✅ AI response generated:", smart_ai_text);
+                console.log("💾 Creating chat history...");
+                const reciever = createChatHistory(
+                  automation.id,
+                  webhook_payload.entry[0].id,
+                  webhook_payload.entry[0].messaging[0].sender.id,
+                  webhook_payload.entry[0].messaging[0].message.text,
+                );
 
-              const sender = createChatHistory(
-                automation.id,
-                webhook_payload.entry[0].id,
-                webhook_payload.entry[0].messaging[0].sender.id,
-                smart_ai_message.choices[0].message.content,
-              );
+                const sender = createChatHistory(
+                  automation.id,
+                  webhook_payload.entry[0].id,
+                  webhook_payload.entry[0].messaging[0].sender.id,
+                  smart_ai_text,
+                );
 
-              await client.$transaction([reciever, sender]);
+                await client.$transaction([reciever, sender]);
 
-              console.log("✅ Chat history saved via transaction");
-              console.log("🚀 Sending DM for SMARTAI...");
-              const direct_message = await sendDM(
-                webhook_payload.entry[0].id,
-                webhook_payload.entry[0].messaging[0].sender.id,
-                smart_ai_message.choices[0].message.content,
-                automation.User?.integrations[0].token!,
-              );
-              console.log("✅ DM Response Status:", direct_message.status);
-              console.log("📋 DM Response Data:", direct_message);
+                console.log("✅ Chat history saved via transaction");
+                console.log("🚀 Sending DM for SMARTAI...");
+                const direct_message = await sendDM(
+                  webhook_payload.entry[0].id,
+                  webhook_payload.entry[0].messaging[0].sender.id,
+                  smart_ai_text,
+                  automation.User?.integrations[0].token!,
+                );
+                console.log("✅ DM Response Status:", direct_message.status);
+                console.log("📋 DM Response Data:", direct_message);
 
-              if (direct_message.status === 200) {
-                console.log("📊 Tracking SMARTAI response...");
-                const tracked = await trackResponse(automation.id, "DM");
-                console.log("✅ Tracked:", tracked);
-                if (tracked) {
-                  console.log("✨ SMARTAI message successfully sent and tracked");
-                  return NextResponse.json(
-                    { message: "MESSAGE_SENT from SMARTAI" },
-                    { status: 200 },
-                  )
+                if (direct_message.status === 200) {
+                  console.log("📊 Tracking SMARTAI response...");
+                  const tracked = await trackResponse(automation.id, "DM");
+                  console.log("✅ Tracked:", tracked);
+                  if (tracked) {
+                    console.log("✨ SMARTAI message successfully sent and tracked");
+                    return NextResponse.json(
+                      { message: "MESSAGE_SENT from SMARTAI" },
+                      { status: 200 },
+                    )
+                  } else {
+                    console.warn("⚠️ Failed to track SMARTAI response");
+                    return NextResponse.json(
+                      { message: "SMARTAI message sent but tracking failed" },
+                      { status: 200 },
+                    );
+                  }
                 } else {
-                  console.warn("⚠️ Failed to track SMARTAI response");
+                  console.error("❌ SMARTAI DM sending failed with status:", direct_message.status);
                   return NextResponse.json(
-                    { message: "SMARTAI message sent but tracking failed" },
+                    { message: "SMARTAI DM sending failed" },
                     { status: 200 },
                   );
                 }
-              } else {
-                console.error("❌ SMARTAI DM sending failed with status:", direct_message.status);
-                return NextResponse.json(
-                  { message: "SMARTAI DM sending failed" },
-                  { status: 200 },
-                );
               }
+            } catch (err: any) {
+              if (err?.name === 'GeminiQuotaError') {
+                console.warn('⚠️ Gemini quota exceeded:', err?.message, 'retryAfterSeconds:', err?.retryAfterSeconds);
+                return NextResponse.json({ message: `SMARTAI temporarily unavailable. Please retry in ${err.retryAfterSeconds || 'a few seconds'}` }, { status: 200 });
+              }
+              console.error("❌ SMARTAI error:", err);
+              return NextResponse.json({ message: "SMARTAI failed" }, { status: 200 });
             }
           }
         }
@@ -253,60 +259,67 @@ export async function POST(req: NextRequest) {
                     automation.User?.subscription?.plan === "PRO"
                 ){
                     console.log("🤖 SMARTAI listener detected for comment. Generating AI response...");
-                    const smart_ai_message = await openai.chat.completions.create({
-                        model: "gpt-4o",
-                        messages: [
-                            {
-                                role: "assistant",
-                                content: `${automation.listener?.prompt}: Keep responses under 2 sentences`,
-                            },
-                        ],
-                    })
-                    if(smart_ai_message.choices[0].message.content){
-                        console.log("✅ AI response generated for comment:", smart_ai_message.choices[0].message.content);
+                    try {
+                      const smart_ai_text = await chatCompletion([
+                        {
+                          role: "assistant",
+                          content: `${automation.listener?.prompt}: Keep responses under 2 sentences`,
+                        },
+                      ])
+
+                      if(smart_ai_text){
+                        console.log("✅ AI response generated for comment:", smart_ai_text);
                         console.log("💾 Creating chat history for comment...");
                         const reciever = createChatHistory(
-                            automation.id,
-                            webhook_payload.entry[0].id,
-                            webhook_payload.entry[0].changes[0].value.from.id,
-                            webhook_payload.entry[0].changes[0].value.text,
+                          automation.id,
+                          webhook_payload.entry[0].id,
+                          webhook_payload.entry[0].changes[0].value.from.id,
+                          webhook_payload.entry[0].changes[0].value.text,
                         )
 
                         const sender = createChatHistory(
-                            automation.id,
-                            webhook_payload.entry[0].id,
-                            webhook_payload.entry[0].changes[0].value.from.id,
-                            smart_ai_message.choices[0].message.content,
+                          automation.id,
+                          webhook_payload.entry[0].id,
+                          webhook_payload.entry[0].changes[0].value.from.id,
+                          smart_ai_text,
                         )
 
                         console.log("💾 Chat history saved via transaction");
                         await client.$transaction([reciever, sender])
 
-                         const direct_message = await sendPrivateMessage(
-                            webhook_payload.entry[0].id,
-                            webhook_payload.entry[0].changes[0].value.id,
-                            automation.listener?.prompt,
-                            automation.User?.integrations[0].token!, 
-                    )
+                        const direct_message = await sendPrivateMessage(
+                          webhook_payload.entry[0].id,
+                          webhook_payload.entry[0].changes[0].value.id,
+                          automation.listener?.prompt,
+                          automation.User?.integrations[0].token!, 
+                        )
 
                         if(direct_message.status === 200){
-                            console.log("📊 Tracking SMARTAI comment response...");
-                            const tracked = await trackResponse(automation.id , "COMMENT")
-                            console.log("✅ Tracked:", tracked);
-                            if(tracked){
-                                console.log("✨ SMARTAI comment message successfully sent and tracked");
-                                return NextResponse.json(
-                                    {
-                                     message:"Message Sent from Comment"
-                                    },
-                                    {
-                                     status:200
-                                    }
-                                )
-                            }
+                          console.log("📊 Tracking SMARTAI comment response...");
+                          const tracked = await trackResponse(automation.id , "COMMENT")
+                          console.log("✅ Tracked:", tracked);
+                          if(tracked){
+                            console.log("✨ SMARTAI comment message successfully sent and tracked");
+                            return NextResponse.json(
+                              {
+                                message:"Message Sent from Comment"
+                              },
+                              {
+                                status:200
+                              }
+                            )
+                          }
                         } else {
                           console.error("❌ DM for comment failed with status:", direct_message.status);
                         }
+                      }
+                    } catch (err: any) {
+                      if (err?.name === 'GeminiQuotaError') {
+                        console.warn('⚠️ Gemini quota exceeded for comment:', err?.message, 'retryAfterSeconds:', err?.retryAfterSeconds);
+                        return NextResponse.json({ message: `SMARTAI temporarily unavailable for comments. Please retry in ${err.retryAfterSeconds || 'a few seconds'}` }, { status: 200 });
+                      }
+                      console.error("❌ SMARTAI comment error:", err);
+                      return NextResponse.json({ message: "SMARTAI failed for comment" }, { status: 200 });
                     }
                 }
             }
@@ -342,63 +355,69 @@ export async function POST(req: NextRequest) {
                   automation.listener?.listener === "SMARTAI"
               ){
                   console.log("🤖 SMARTAI with existing chat history. Generating contextual AI response...");
-                  const smart_ai_message = await openai.chat.completions.create({
-                      model:'gpt-4o',
-                      messages:[
-                          {
-                              role:'assistant',
-                              content:`${automation.listener?.prompt}: Keep responses under 2 sentences`
-                          },
-                          ...customer_history.history,
-                          {
-                              role:'user',
-                              content:webhook_payload.entry[0].messaging[0].message.text
-                          }
-                      ]
-                  })
+                  try {
+                    const smart_ai_text = await chatCompletion([
+                      {
+                        role:'assistant',
+                        content:`${automation.listener?.prompt}: Keep responses under 2 sentences`
+                      },
+                      ...customer_history.history,
+                      {
+                        role:'user',
+                        content:webhook_payload.entry[0].messaging[0].message.text
+                      }
+                    ])
 
-                  console.log("✅ AI response with context generated:", smart_ai_message.choices[0].message.content);
+                    console.log("✅ AI response with context generated:", smart_ai_text);
 
-                  if(smart_ai_message.choices[0].message.content){
+                    if(smart_ai_text){
                       console.log("💾 Creating chat history entries...");
                       const reciever = createChatHistory(
-                          automation.id,
-                          webhook_payload.entry[0].id,
-                          webhook_payload.entry[0].messaging[0].sender.id,
-                          webhook_payload.entry[0].messaging[0].message.text,
+                        automation.id,
+                        webhook_payload.entry[0].id,
+                        webhook_payload.entry[0].messaging[0].sender.id,
+                        webhook_payload.entry[0].messaging[0].message.text,
                       )
 
                       const sender = createChatHistory(
-                          automation.id,
-                          webhook_payload.entry[0].id,
-                          webhook_payload.entry[0].messaging[0].sender.id,
-                          smart_ai_message.choices[0].message.content,
+                        automation.id,
+                        webhook_payload.entry[0].id,
+                        webhook_payload.entry[0].messaging[0].sender.id,
+                        smart_ai_text,
                       )
                       console.log("💾 Chat history saved via transaction");
                       await client.$transaction([reciever, sender]);
                       console.log("🚀 Sending contextual AI response via DM...");
                       const direct_message = await sendDM(
-                          webhook_payload.entry[0].id,
-                          webhook_payload.entry[0].messaging[0].sender.id,
-                          smart_ai_message.choices[0].message.content,
-                          automation.User?.integrations[0].token!,
+                        webhook_payload.entry[0].id,
+                        webhook_payload.entry[0].messaging[0].sender.id,
+                        smart_ai_text,
+                        automation.User?.integrations[0].token!,
                       )
                       console.log("✅ DM response status:", direct_message.status);
 
                       if(direct_message.status === 200){
-                          // if successfully send we return
-                          console.log("✨ Contextual SMARTAI message successfully sent");
-                          return NextResponse.json(
-                              {
-                                  message:"Message Sent from Comment"
-                              },
-                              {
-                                  status:200
-                              }
-                          )
+                        // if successfully send we return
+                        console.log("✨ Contextual SMARTAI message successfully sent");
+                        return NextResponse.json(
+                          {
+                            message:"Message Sent from Comment"
+                          },
+                          {
+                            status:200
+                          }
+                        )
                       } else {
                         console.error("❌ Contextual DM sending failed");
                       }
+                    }
+                  } catch (err: any) {
+                    if (err?.name === 'GeminiQuotaError') {
+                      console.warn('⚠️ Gemini quota exceeded for contextual reply:', err?.message, 'retryAfterSeconds:', err?.retryAfterSeconds);
+                      return NextResponse.json({ message: `SMARTAI temporarily unavailable. Please retry in ${err.retryAfterSeconds || 'a few seconds'}` }, { status: 200 });
+                    }
+                    console.error("❌ SMARTAI contextual error:", err.message);
+                    return NextResponse.json({ message: "SMARTAI failed" }, { status: 200 });
                   }
               }
           }
@@ -438,9 +457,8 @@ export async function POST(req: NextRequest) {
                 dmAutomation.User?.subscription?.plan === "PRO"
               ) {
                 console.log("🤖 Generating SMARTAI response for DM-triggered automation...");
-                const smart_ai_message = await openai.chat.completions.create({
-                  model: "gpt-4o",
-                  messages: [
+                try {
+                  const smart_ai_text = await chatCompletion([
                     {
                       role: "assistant",
                       content: `${dmAutomation.listener?.prompt}: Keep responses under 2 sentences`,
@@ -449,40 +467,47 @@ export async function POST(req: NextRequest) {
                       role: "user",
                       content: webhook_payload.entry[0].messaging[0].message?.text || "",
                     },
-                  ],
-                });
+                  ]);
 
-                if (smart_ai_message.choices[0].message.content) {
-                  console.log("✅ AI response generated:", smart_ai_message.choices[0].message.content);
-                  const reciever = createChatHistory(
-                    dmAutomation.id,
-                    webhook_payload.entry[0].id,
-                    webhook_payload.entry[0].messaging[0].sender.id,
-                    webhook_payload.entry[0].messaging[0].message?.text || "",
-                  );
+                  if (smart_ai_text) {
+                    console.log("✅ AI response generated:", smart_ai_text);
+                    const reciever = createChatHistory(
+                      dmAutomation.id,
+                      webhook_payload.entry[0].id,
+                      webhook_payload.entry[0].messaging[0].sender.id,
+                      webhook_payload.entry[0].messaging[0].message?.text || "",
+                    );
 
-                  const sender = createChatHistory(
-                    dmAutomation.id,
-                    webhook_payload.entry[0].id,
-                    webhook_payload.entry[0].messaging[0].sender.id,
-                    smart_ai_message.choices[0].message.content,
-                  );
+                    const sender = createChatHistory(
+                      dmAutomation.id,
+                      webhook_payload.entry[0].id,
+                      webhook_payload.entry[0].messaging[0].sender.id,
+                      smart_ai_text,
+                    );
 
-                  await client.$transaction([reciever, sender]);
+                    await client.$transaction([reciever, sender]);
 
-                  const direct_message = await sendDM(
-                    webhook_payload.entry[0].id,
-                    webhook_payload.entry[0].messaging[0].sender.id,
-                    smart_ai_message.choices[0].message.content,
-                    dmAutomation.User?.integrations[0].token!,
-                  );
+                    const direct_message = await sendDM(
+                      webhook_payload.entry[0].id,
+                      webhook_payload.entry[0].messaging[0].sender.id,
+                      smart_ai_text,
+                      dmAutomation.User?.integrations[0].token!,
+                    );
 
-                  if (direct_message.status === 200) {
-                    const tracked = await trackResponse(dmAutomation.id, "DM");
-                    if (tracked) {
-                      return NextResponse.json({ message: "DM_SENT_SMARTAI" }, { status: 200 });
+                    if (direct_message.status === 200) {
+                      const tracked = await trackResponse(dmAutomation.id, "DM");
+                      if (tracked) {
+                        return NextResponse.json({ message: "DM_SENT_SMARTAI" }, { status: 200 });
+                      }
                     }
                   }
+                } catch (err: any) {
+                  if (err?.name === 'GeminiQuotaError') {
+                    console.warn('⚠️ Gemini quota exceeded for DM-triggered SMARTAI:', err?.message, 'retryAfterSeconds:', err?.retryAfterSeconds);
+                    return NextResponse.json({ message: `SMARTAI temporarily unavailable. Please retry in ${err.retryAfterSeconds || 'a few seconds'}` }, { status: 200 });
+                  }
+                  console.error("❌ SMARTAI DM-triggered error:", err);
+                  return NextResponse.json({ message: "SMARTAI failed" }, { status: 200 });
                 }
               }
             }

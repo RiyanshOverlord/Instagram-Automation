@@ -1,5 +1,9 @@
 import { client } from "@/lib/prisma"
-import { ChatCompletionMessageParam } from "openai/resources/chat";
+
+export type ChatMessage = {
+    role: "assistant" | "user" | "system";
+    content: string;
+};
 
 // Function to match a keyword in the database (accepts full text and matches whole words case-insensitively)
 export const matchKeyword = async (text: string) => {
@@ -169,12 +173,12 @@ export const getChatHistory = async (sender: string, reciever: string) => {
 
   if (!dms.length) {
     return {
-      history: [] as ChatCompletionMessageParam[],
+      history: [] as ChatMessage[],
       automationId: null,
     };
   }
 
-  const history: ChatCompletionMessageParam[] = dms.map((dm) => ({
+  const history: ChatMessage[] = dms.map((dm) => ({
     role: (dm.senderId === sender ? "assistant" : "user") as
       | "assistant"
       | "user",

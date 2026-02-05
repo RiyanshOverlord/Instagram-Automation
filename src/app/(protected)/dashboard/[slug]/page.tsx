@@ -27,14 +27,16 @@ const Page = (props: Props) => {
             </p>
           </div>
         </span>
-        <div className="w-full flex lg:flex-row flex-col gap-5">
-          <div className="lg:w-6/12">
-            <Chart />
-          </div>
-          <div className="lg:w-6/12">
-          <MetricsCard/>
-           </div>
-        </div>
+       <div className="w-full flex lg:flex-row flex-col gap-5">
+   <div className="lg:w-6/12 h-[360px]">
+    <Chart />
+  </div>
+
+  <div className="lg:w-6/12 h-[360px]">
+    <MetricsCard />
+  </div>
+</div>
+
       </div>
     </div>
   );

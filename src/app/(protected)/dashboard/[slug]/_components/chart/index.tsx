@@ -29,7 +29,7 @@ const Chart = () => {
   return (
     <Card className="border-none p-0">
       <CardContent className="p-0">
-        <ResponsiveContainer height={300} width="100%">
+        <ResponsiveContainer height={250} width="100%">
           <ChartContainer config={chartConfig}>
             <AreaChart data={chartData} margin={{ left: 12, right: 12 }}>
               
